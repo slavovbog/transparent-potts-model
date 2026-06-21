@@ -1,7 +1,7 @@
 # Batch generation and caching of MC concentration trajectories.
 module Trajectories
 
-using Random
+using StableRNGs: StableRNG
 
 using ..NumericalUtils
 using ..Simulations
@@ -9,6 +9,10 @@ using ..ExactPottsModel
 
 const cache = Dict()
 const DATA_DIR = normpath(joinpath(@__DIR__, "..", "..", "data", "trajectories/"))
+
+# Fixed salt so seeds are stable across Julia versions and platforms (via StableRNGs).
+const TRAJECTORY_SEED_SALT = 42
+
 read_records(path::AbstractString) = ExactPottsModel.read_records!(cache, path)
 read_records(input) = ExactPottsModel.read_record_file!(cache, cache_path(input))
 read_records() = ExactPottsModel.read_record_dir!(cache, DATA_DIR)
@@ -32,20 +36,42 @@ function model_params(config)
     )
 end
 
+function trajectory_seed(config, replicate_id::Int)
+    @assert replicate_id >= 1 "replicate_id must be >= 1"
+    h = hash((
+        TRAJECTORY_SEED_SALT,
+        config.q,
+        config.n,
+        config.T,
+        config.J,
+        config.n_steps,
+        config.burn_in,
+        config.thin,
+        replicate_id,
+    ))
+    return Int(mod(h, Int128(2)^31 - 2)) + 1
+end
+
+trajectory_rng(seed::Integer) = StableRNG(seed)
+
 function build_trajectory_input(config)
     @assert isfinite(config.n) "For trajectories n must be finite"
+    replicate_id = get(config, :replicate_id, 1)
+    seed = get(config, :seed, trajectory_seed(config, replicate_id))
     return (
         output_kind = :traj,
         model_params = model_params(config),
         n_steps = config.n_steps,
         burn_in = config.burn_in,
         thin = config.thin,
-        rng = config.rng,
+        replicate_id = replicate_id,
+        seed = seed,
     )
 end
 
 function run_trajectory(input)
     model_params = input.model_params
+    rng = trajectory_rng(input.seed)
 
     # All chains start fully polarized in color 1.
     traj = Simulations.generate_trajectory(
@@ -57,21 +83,21 @@ function run_trajectory(input)
         n_steps = input.n_steps,
         burn_in = input.burn_in,
         thin = input.thin,
-        rng = input.rng,
+        rng = rng,
     )
 
     return (traj = traj,)
 end
 
-function trajectory_outputs(config)
+function trajectory_output(config)
     input = build_trajectory_input(config)
     records = get_or_run!(input, run_trajectory)
-    return [record.output for record in records]
+    return only(records).output
 end
 
 function parallel_run(config, n_trajectories; batch_size)
     inputs = [
-        build_trajectory_input((; config..., rng = Random.default_rng())) for _ in 1:n_trajectories
+        build_trajectory_input((; config..., replicate_id = i)) for i in 1:n_trajectories
     ]
 
     cache_file = cache_path(inputs[1])
@@ -79,5 +105,9 @@ function parallel_run(config, n_trajectories; batch_size)
 
     ExactPottsModel.parallel_run!(cache_file, inputs, run_trajectory; batch_size = batch_size)
 end
+
+export trajectory_seed
+export trajectory_output
+export parallel_run
 
 end # module

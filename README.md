@@ -24,7 +24,7 @@ julia --project scripts/make_figures_6-7.jl
 
 PDFs are written to `figures/` (created automatically).
 
-`julia --project scripts/check_representations.jl` is a sanity check.
+`julia --project scripts/check_representations.jl` is a sanity check for the Hamiltonian.
 
 ## Model notation
 
@@ -54,10 +54,12 @@ The Julia workflows in `src/workflows/` read and write JLD2 files through an in-
 
 Each record has the form `(input = …, output = (traj = …,))`.
 
-- **`input`** — model parameters $(q, n, T, J)$, MC settings (`n_steps`, `burn_in`, `thin`, `rng`).
+- **`input`** — model parameters $(q, n, T, J)$, MC settings (`n_steps`, `burn_in`, `thin`), and `replicate_id` with deterministic `seed` (via [StableRNGs.jl](https://github.com/JuliaRandom/StableRNGs.jl)).
 - **`output.traj`** — named tuple with `c` ($q \times n_{\text{recorded}}$ matrix of $c_p$), `t_sweeps`, and `accept_rate`.
 
-Records are keyed `"1"`, `"2"`, … in the order produced by `scripts/generate_trajectories.jl`. Multiple trajectories for the same $(q, n, T, J)$ differ only in the random seed.
+Seeds are computed by `trajectory_seed(config, replicate_id)` from the model settings and replicate index. The same `replicate_id` always yields the same trajectory.
+
+Records are keyed `"1"`, `"2"`, … in the order produced by `scripts/generate_trajectories.jl`.
 
 ### Generated locally
 

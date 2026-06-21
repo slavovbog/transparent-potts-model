@@ -1,6 +1,5 @@
 using ExactPottsModel
 Trajs = ExactPottsModel.Trajectories
-using Random
 using CairoMakie
 using LaTeXStrings
 CairoMakie.activate!()
@@ -8,20 +7,18 @@ CairoMakie.activate!()
 empty!(Trajs.cache)
 Trajs.read_records()
 
-function plot_traj!(fig, q, n, T, J, n_steps, traj_id)
+function plot_traj!(fig, q, n, T, J, n_steps, replicate_id)
     config = (
-        q = q, 
-        n = n, 
-        T = T, 
-        J = J, 
-        n_steps = n_steps, 
-        burn_in = 0, 
+        q = q,
+        n = n,
+        T = T,
+        J = J,
+        n_steps = n_steps,
+        burn_in = 0,
         thin = 1,
-        rng = Random.default_rng(),
+        replicate_id = replicate_id,
     )
-    outputs = Trajs.trajectory_outputs(config)
-    @assert length(outputs) >= traj_id "traj_id is out of range"
-    traj = outputs[traj_id].traj
+    traj = Trajs.trajectory_output(config).traj
     c = traj.c
     t = traj.t_sweeps
 
@@ -78,7 +75,7 @@ function figure6()
     fb = fig[1, 2]
     fc = fig[1, 3]
 
-    plot_traj!(fa, q, n, T, Js[j1], n_steps, 4)
+    plot_traj!(fa, q, n, T, Js[j1], n_steps, 1)
     ax = content(fa[1, 1])
     ax.title = L"J_2=%$(Js[j1][1]),\ J_3=%$(Js[j1][2])\ \text{(%$(romannum(j1)))}"
 
@@ -119,7 +116,7 @@ function figure7()
     fa = fig[1, 1]
     fb = fig[1, 2]
 
-    plot_traj!(fa, q, n, T1, Js[j], n_steps, 1)
+    plot_traj!(fa, q, n, T1, Js[j], n_steps, 2)
     ax = content(fa[1, 1])
     ax.title = L"T=%$(T1)"
     # xlims!(ax, 0, 500)
